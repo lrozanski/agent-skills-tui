@@ -54,6 +54,10 @@ function buildTree(): SkillTree {
         skillMeta: {
           name: "skill-a",
           description: "",
+          frontmatter: {
+            name: "skill-a",
+            description: "",
+          },
         },
       },
       s2: {
@@ -69,6 +73,10 @@ function buildTree(): SkillTree {
         skillMeta: {
           name: "skill-a",
           description: "",
+          frontmatter: {
+            name: "skill-a",
+            description: "",
+          },
         },
       },
     },

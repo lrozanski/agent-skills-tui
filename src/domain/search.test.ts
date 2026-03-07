@@ -42,6 +42,10 @@ const tree: SkillTree = {
       skillMeta: {
         name: "backend-hardening",
         description: "",
+        frontmatter: {
+          name: "backend-hardening",
+          description: "",
+        },
       },
     },
     s2: {
@@ -57,6 +61,10 @@ const tree: SkillTree = {
       skillMeta: {
         name: "frontend-basics",
         description: "",
+        frontmatter: {
+          name: "frontend-basics",
+          description: "",
+        },
       },
     },
   },

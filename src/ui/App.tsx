@@ -1,6 +1,6 @@
 import { Box, type Key, Text, useApp, useInput, useStdout } from "ink";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { filterTreeBySkillName } from "../domain/search.js";
 import {
@@ -13,7 +13,7 @@ import type { SkillTree } from "../domain/types.js";
 import { discoverSkills } from "../services/discovery.js";
 import { resolveSource, syncSource } from "../services/source.js";
 
-const SIDEBAR_WIDTH = 38;
+const SIDEBAR_WIDTH = 46;
 const COLORS = {
   shell: "#171925",
   panel: "#20263d",
@@ -120,6 +120,34 @@ function getSelectionBackground(node: SkillTree["nodes"][string]): string {
   return node.kind === "group" ? COLORS.selectionGroup : COLORS.selectionSkill;
 }
 
+function formatFrontmatterKey(key: string): string {
+  return key
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatFrontmatterValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map((item) => formatFrontmatterValue(item)).join(", ");
+  }
+
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+function normalizeFrontmatterValue(value: unknown): string {
+  return formatFrontmatterValue(value).trim();
+}
+
 export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
   const { exit } = useApp();
   const { stdout } = useStdout();
@@ -132,6 +160,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
   const [status, setStatus] = useState("Loading source...");
   const [busy, setBusy] = useState(true);
   const [activeSourceArg, setActiveSourceArg] = useState(sourceArg);
+  const pendingCursorNodeIdRef = useRef<string | null>(null);
 
   const loadTree = useCallback(
     async (mode: "initial" | "refresh") => {
@@ -190,8 +219,18 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
       return;
     }
 
+    const pendingCursorNodeId = pendingCursorNodeIdRef.current;
+    if (pendingCursorNodeId) {
+      const restoredIndex = visibleRows.findIndex((row) => row.id === pendingCursorNodeId);
+      pendingCursorNodeIdRef.current = null;
+      if (restoredIndex >= 0) {
+        setCursorIndex(restoredIndex);
+        return;
+      }
+    }
+
     setCursorIndex((currentIndex) => Math.max(0, Math.min(currentIndex, visibleRows.length - 1)));
-  }, [visibleRows.length]);
+  }, [visibleRows]);
 
   const selectedSkills = useMemo(() => {
     if (!tree) {
@@ -203,10 +242,10 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
 
   const activeRow = visibleRows[cursorIndex];
   const activeNode = tree && activeRow ? tree.nodes[activeRow.id] : undefined;
-  const previewDescription =
-    activeNode?.kind === "skill"
-      ? activeNode.errorMessage || activeNode.skillMeta?.description || "(No description)"
-      : "Move to a skill to preview its description.";
+  const previewEntries =
+    activeNode?.kind === "skill" && activeNode.skillMeta
+      ? Object.entries(activeNode.skillMeta.frontmatter)
+      : [];
 
   const moveCursor = useCallback(
     (delta: number): void => {
@@ -328,6 +367,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
     (input: string, key: Key) => {
       if (searchMode) {
         if (key.escape) {
+          pendingCursorNodeIdRef.current = activeRow?.id ?? null;
           setQuery("");
           setSearchInput("");
           setSearchMode(false);
@@ -364,6 +404,15 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
 
       if (input === "q") {
         exit({ kind: "quit" } satisfies AppExitResult);
+        return;
+      }
+
+      if (key.escape && (query.length > 0 || searchInput.length > 0)) {
+        pendingCursorNodeIdRef.current = activeRow?.id ?? null;
+        setQuery("");
+        setSearchInput("");
+        setSearchMode(false);
+        setStatus("Search cleared.");
         return;
       }
 
@@ -435,6 +484,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
       collapseAtCursor,
       expandAtCursor,
       showHelp,
+      activeRow,
     ],
   );
 
@@ -445,12 +495,9 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
   const stdoutWidth = stdout.columns ?? 80;
   const stdoutHeight = stdout.rows ?? 24;
   const sidebarWidth = clamp(SIDEBAR_WIDTH, 30, Math.max(30, stdoutWidth - 24));
-  const contentWidth = Math.max(24, stdoutWidth - sidebarWidth - 5);
-  const previewLength = clamp(contentWidth * 6, 120, 420);
   const headerHeight = 1;
   const footerHeight = (searchMode ? 1 : 0) + 1;
   const mainHeight = Math.max(8, stdoutHeight - headerHeight - footerHeight);
-  const previewBody = truncateText(previewDescription, previewLength);
   const listViewportSize = Math.max(1, mainHeight - 3);
   const listWindowStart = clamp(
     cursorIndex - Math.floor(listViewportSize / 2),
@@ -578,66 +625,99 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
           </Box>
         </Box>
 
-        <Box flexDirection="column" flexGrow={1} flexShrink={1} height={mainHeight}>
+        <Box
+          backgroundColor={COLORS.panelMuted}
+          flexDirection="column"
+          flexGrow={1}
+          flexShrink={1}
+          height={mainHeight}
+          justifyContent="space-between"
+        >
           <Box
-            backgroundColor={COLORS.panelMuted}
+            backgroundColor={COLORS.panelHelp}
             flexDirection="column"
-            flexGrow={1}
-            justifyContent="space-between"
+            flexShrink={1}
+            marginX={1}
+            marginY={1}
             paddingX={1}
             paddingY={0}
           >
-            <Box flexDirection="column">
+            <Box backgroundColor={COLORS.panel} justifyContent="center" marginX={-1} paddingX={1}>
               <Text bold color={COLORS.accent}>
-                Description
+                Details
               </Text>
-              <Text color={COLORS.text}>{previewBody}</Text>
             </Box>
-            {showHelp ? (
-              <Box
-                backgroundColor={COLORS.panelHelp}
-                flexDirection="column"
-                marginX={1}
-                paddingX={1}
-                paddingY={0}
-                marginBottom={1}
-              >
-                <Box
-                  backgroundColor={COLORS.panel}
-                  justifyContent="center"
-                  marginX={-1}
-                  paddingX={1}
-                >
-                  <Text bold color={COLORS.accent}>
-                    Keyboard Shortcuts
-                  </Text>
-                </Box>
-                <Box flexDirection="row" justifyContent="space-between">
-                  <ShortcutHint label="up/down" action="move cursor" />
-                  <ShortcutHint label="space" action="toggle" />
-                </Box>
-                <Box flexDirection="row" justifyContent="space-between">
-                  <ShortcutHint label="left/right" action="collapse/expand" />
-                  <ShortcutHint label="f" action="search" />
-                </Box>
-                <Box flexDirection="row" justifyContent="space-between">
-                  <ShortcutHint label="r" action="refresh" />
-                  <ShortcutHint label="enter" action="install" />
-                </Box>
-                <Box flexDirection="row" justifyContent="space-between">
-                  <ShortcutHint label="q" action="quit" />
-                  <ShortcutHint label="?" action="toggle shortcuts" />
-                </Box>
-              </Box>
-            ) : null}
+            <Box flexDirection="column" paddingY={1}>
+              {activeNode?.kind === "skill" ? (
+                activeNode.errorMessage ? (
+                  <Text color={COLORS.danger}>{activeNode.errorMessage}</Text>
+                ) : previewEntries.length > 0 ? (
+                  previewEntries.map(([key, value]) => (
+                    <Text key={key} color={COLORS.footerText}>
+                      <Text color={COLORS.footerAccent}>{formatFrontmatterKey(key)}:</Text>{" "}
+                      {normalizeFrontmatterValue(value)}
+                    </Text>
+                  ))
+                ) : (
+                  <Text color={COLORS.footerText}>(No frontmatter fields)</Text>
+                )
+              ) : (
+                <Text color={COLORS.footerText}>Move to a skill to preview its details.</Text>
+              )}
+            </Box>
           </Box>
+          {showHelp ? (
+            <Box
+              backgroundColor={COLORS.panelHelp}
+              flexDirection="column"
+              marginX={1}
+              marginBottom={1}
+              paddingX={1}
+              paddingY={0}
+            >
+              <Box backgroundColor={COLORS.panel} justifyContent="center" marginX={-1} paddingX={1}>
+                <Text bold color={COLORS.accent}>
+                  Keyboard Shortcuts
+                </Text>
+              </Box>
+              <Box flexDirection="row" justifyContent="space-between">
+                <ShortcutHint label="up/down" action="move cursor" />
+                <ShortcutHint label="space" action="toggle" />
+              </Box>
+              <Box flexDirection="row" justifyContent="space-between">
+                <ShortcutHint label="left/right" action="collapse/expand" />
+                <ShortcutHint label="f" action="search" />
+              </Box>
+              <Box flexDirection="row" justifyContent="space-between">
+                <ShortcutHint label="r" action="refresh" />
+                <ShortcutHint label="enter" action="install" />
+              </Box>
+              <Box flexDirection="row" justifyContent="space-between">
+                <ShortcutHint label="q" action="quit" />
+                <ShortcutHint label="?" action="toggle shortcuts" />
+              </Box>
+            </Box>
+          ) : null}
         </Box>
       </Box>
 
       {searchMode ? (
-        <Box backgroundColor={COLORS.panel} paddingX={1} paddingY={0}>
+        <Box
+          backgroundColor={COLORS.panelHelp}
+          justifyContent="space-between"
+          paddingX={1}
+          paddingY={0}
+        >
+          <Text>
+            <Text bold color={COLORS.accent}>
+              Search
+            </Text>
+            <Text color={COLORS.footerSeparator}>: </Text>
+            <Text color={COLORS.text}>{searchInput}</Text>
+            <Text color={COLORS.footerSeparator}>_</Text>
+          </Text>
           <Text color={COLORS.footerText}>
-            Search: {searchInput}| <ShortcutKey>enter</ShortcutKey> apply ·{" "}
+            <ShortcutKey>enter</ShortcutKey> apply <Text color={COLORS.footerSeparator}>·</Text>{" "}
             <ShortcutKey>esc</ShortcutKey> clear
           </Text>
         </Box>

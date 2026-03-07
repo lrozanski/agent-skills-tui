@@ -5,6 +5,7 @@ export type SelectionState = "checked" | "unchecked" | "partial";
 export interface SkillMeta {
   name: string;
   description: string;
+  frontmatter: Record<string, unknown>;
 }
 
 export interface SymlinkMeta {

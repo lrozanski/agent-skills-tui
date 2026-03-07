@@ -11,10 +11,14 @@ const ROOT_ID = "__root__";
 async function parseSkillMeta(skillFilePath: string): Promise<SkillMeta> {
   const raw = await readFile(skillFilePath, "utf-8");
   const parsed = matter(raw);
+  const frontmatter =
+    parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data)
+      ? { ...parsed.data }
+      : {};
 
-  const name = typeof parsed.data.name === "string" ? parsed.data.name.trim() : "";
+  const name = typeof frontmatter.name === "string" ? frontmatter.name.trim() : "";
   const description =
-    typeof parsed.data.description === "string" ? parsed.data.description.trim() : "";
+    typeof frontmatter.description === "string" ? frontmatter.description.trim() : "";
 
   if (!name) {
     throw new Error(
@@ -22,7 +26,7 @@ async function parseSkillMeta(skillFilePath: string): Promise<SkillMeta> {
     );
   }
 
-  return { name, description };
+  return { name, description, frontmatter };
 }
 
 interface BuildContext {
