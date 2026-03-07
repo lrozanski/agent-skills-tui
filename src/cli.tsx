@@ -19,7 +19,19 @@ async function runCli(): Promise<void> {
 
   console.clear();
   const appInstance = render(<App sourceArg={sourceArg} targetCwd={targetCwd} />);
-  const waitResult = await appInstance.waitUntilExit();
+  const handleResize = (): void => {
+    appInstance.rerender(<App sourceArg={sourceArg} targetCwd={targetCwd} />);
+  };
+
+  process.stdout.on("resize", handleResize);
+
+  let waitResult: unknown;
+  try {
+    waitResult = await appInstance.waitUntilExit();
+  } finally {
+    process.stdout.off("resize", handleResize);
+  }
+
   const result = isAppExitResult(waitResult) ? waitResult : { kind: "quit" as const };
 
   if (result.kind !== "install") {

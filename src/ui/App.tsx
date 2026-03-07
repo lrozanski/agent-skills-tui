@@ -508,7 +508,8 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
   const headerHeight = 1;
   const footerHeight = (searchMode ? 1 : 0) + 1;
   const mainHeight = Math.max(8, stdoutHeight - headerHeight - footerHeight);
-  const listViewportSize = Math.max(1, mainHeight - 3);
+  const sidebarChromeHeight = 5;
+  const listViewportSize = Math.max(1, mainHeight - sidebarChromeHeight);
   const listWindowStart = clamp(
     cursorIndex - Math.floor(listViewportSize / 2),
     0,
