@@ -651,6 +651,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
           flexShrink={1}
           height={mainHeight}
           justifyContent="space-between"
+          overflow="hidden"
         >
           <Box
             backgroundColor={COLORS.panelHelp}
@@ -691,6 +692,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
               flexDirection="column"
               marginX={1}
               marginBottom={1}
+              overflow="hidden"
               paddingX={1}
               paddingY={0}
             >
@@ -699,21 +701,37 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
                   Keyboard Shortcuts
                 </Text>
               </Box>
-              <Box flexDirection="row" justifyContent="space-between">
-                <ShortcutHint label="up/down" action="move cursor" />
-                <ShortcutHint label="space" action="toggle" />
-              </Box>
-              <Box flexDirection="row" justifyContent="space-between">
-                <ShortcutHint label="left/right" action="collapse/expand" />
-                <ShortcutHint label="f" action="search" />
-              </Box>
-              <Box flexDirection="row" justifyContent="space-between">
-                <ShortcutHint label="r" action="refresh" />
-                <ShortcutHint label="enter" action="install" />
-              </Box>
-              <Box flexDirection="row" justifyContent="space-between">
-                <ShortcutHint label="q" action="quit" />
-                <ShortcutHint label="?" action="toggle shortcuts" />
+              <Box
+                columnGap={2}
+                flexDirection="row"
+                flexWrap="wrap"
+                justifyContent="space-between"
+                overflow="hidden"
+              >
+                <Box overflow="hidden" paddingRight={2}>
+                  <ShortcutHint label="up/down" action="move cursor" />
+                </Box>
+                <Box overflow="hidden" paddingRight={2}>
+                  <ShortcutHint label="left/right" action="collapse/expand" />
+                </Box>
+                <Box overflow="hidden" paddingRight={2}>
+                  <ShortcutHint label="space" action="toggle" />
+                </Box>
+                <Box overflow="hidden" paddingRight={2}>
+                  <ShortcutHint label="f" action="search" />
+                </Box>
+                <Box overflow="hidden" paddingRight={2}>
+                  <ShortcutHint label="r" action="refresh" />
+                </Box>
+                <Box overflow="hidden" paddingRight={2}>
+                  <ShortcutHint label="enter" action="install" />
+                </Box>
+                <Box overflow="hidden" paddingRight={2}>
+                  <ShortcutHint label="q" action="quit" />
+                </Box>
+                <Box overflow="hidden">
+                  <ShortcutHint label="?" action="toggle shortcuts" />
+                </Box>
               </Box>
             </Box>
           ) : null}
