@@ -15,21 +15,21 @@ import { resolveSource, syncSource } from "../services/source.js";
 
 const SIDEBAR_WIDTH = 38;
 const COLORS = {
-  shell: "#16172b",
-  panel: "#1d2140",
-  panelAlt: "#22274a",
-  panelMuted: "#1a1e39",
-  accent: "#8be9fd",
-  accentSoft: "#b8c0ff",
-  text: "#cfd6f6",
-  muted: "#8a90b9",
-  group: "#8be9fd",
-  skill: "#c7cdea",
-  success: "#9fe870",
-  warning: "#ffd479",
-  danger: "#ff8c8c",
-  selection: "#2f3a63",
-  selectionText: "#dbe4ff",
+  shell: "#171925",
+  panel: "#23273a",
+  panelAlt: "#1c2033",
+  panelMuted: "#141827",
+  accent: "#f2cdcd",
+  accentSoft: "#6c7086",
+  text: "#c7cee5",
+  muted: "#8890ad",
+  group: "#9b84b8",
+  skill: "#fff1d6",
+  success: "#a6da95",
+  warning: "#f7c7e8",
+  danger: "#ed8796",
+  selection: "#5b6078",
+  selectionText: "#ffffff",
 } as const;
 
 export interface AppExitResult {
@@ -69,6 +69,14 @@ function selectionMark(selection: "checked" | "unchecked" | "partial"): string {
   }
 
   return "[ ]";
+}
+
+function nodeIcon(node: SkillTree["nodes"][string]): string {
+  if (node.kind === "group") {
+    return node.expanded ? "-" : "+";
+  }
+
+  return "";
 }
 
 function getStatusColor(status: string): string {
@@ -393,7 +401,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
   const sidebarWidth = clamp(SIDEBAR_WIDTH, 30, Math.max(30, stdoutWidth - 24));
   const contentWidth = Math.max(24, stdoutWidth - sidebarWidth - 5);
   const previewLength = clamp(contentWidth * 6, 120, 420);
-  const headerHeight = 3;
+  const headerHeight = 1;
   const footerHeight = (searchMode ? 1 : 0) + 1;
   const mainHeight = Math.max(8, stdoutHeight - headerHeight - footerHeight);
   const previewBody = truncateText(previewDescription, previewLength);
@@ -411,26 +419,18 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
       height={stdoutHeight}
       width={stdoutWidth}
     >
-      <Box
-        backgroundColor={COLORS.panel}
-        borderBottom
-        borderBottomColor={COLORS.accentSoft}
-        borderLeft={false}
-        borderRight={false}
-        borderStyle="single"
-        borderTop={false}
-        flexDirection="column"
-        paddingX={1}
-        paddingY={0}
-      >
-        <Box justifyContent="space-between">
+      <Box backgroundColor={COLORS.panel} flexDirection="row" paddingX={1} paddingY={0}>
+        <Box flexBasis={0} flexGrow={1} />
+        <Box alignItems="center" flexBasis={0} flexGrow={1} justifyContent="center">
           <Text bold color={COLORS.accent}>
             Agent Skills TUI
           </Text>
         </Box>
-        <Text color={COLORS.muted}>
-          {truncateText(`Source: ${activeSourceArg}`, Math.max(40, stdoutWidth - 10))}
-        </Text>
+        <Box alignItems="flex-end" flexBasis={0} flexGrow={1}>
+          <Text color={COLORS.muted} wrap="truncate-start">
+            {truncateText(`Source: ${activeSourceArg}`, Math.max(24, Math.floor(stdoutWidth / 3)))}
+          </Text>
+        </Box>
       </Box>
 
       <Box
@@ -451,7 +451,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
           width={sidebarWidth}
         >
           <Box justifyContent="space-between">
-            <Text bold color={COLORS.accentSoft}>
+            <Text bold color={COLORS.accent}>
               Skills
             </Text>
             <Text color={COLORS.muted}>{selectedSkills.length} selected</Text>
@@ -473,19 +473,30 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
                 const isActive = actualRowIndex === cursorIndex;
                 const rowColor = node?.kind === "group" ? COLORS.group : COLORS.skill;
                 const mark = selectionMark(node.selection);
-                const prefix = `${rowPrefix(isActive)} ${"  ".repeat(row.depth)}`;
-                const branch = node.kind === "group" ? (node.expanded ? "▾" : "▸") : "•";
+                const indent = "  ".repeat(row.depth);
+                const icon = nodeIcon(node);
                 const skillLabel =
                   node.kind === "skill" && node.skillMeta ? node.skillMeta.name : node.label;
 
                 return (
                   <Box key={row.id} backgroundColor={isActive ? COLORS.selection : COLORS.panelAlt}>
-                    <Text color={isActive ? COLORS.selectionText : rowColor} wrap="truncate-end">
-                      {prefix}
-                    </Text>
-                    <Text color={COLORS.muted}>{mark}</Text>
-                    <Text color={isActive ? COLORS.selectionText : rowColor} wrap="truncate-end">
-                      {` ${branch} ${skillLabel}`}
+                    <Text
+                      color={isActive ? COLORS.selectionText : COLORS.muted}
+                    >{`${rowPrefix(isActive)} ${indent}`}</Text>
+                    {node.kind === "group" ? (
+                      <Text
+                        color={isActive ? COLORS.selectionText : COLORS.group}
+                      >{`${icon} `}</Text>
+                    ) : (
+                      <Text color={isActive ? COLORS.selectionText : COLORS.muted}> </Text>
+                    )}
+                    <Text color={COLORS.muted}>{`${mark} `}</Text>
+                    <Text
+                      bold={node.kind === "skill"}
+                      color={isActive ? COLORS.selectionText : rowColor}
+                      wrap="truncate-end"
+                    >
+                      {skillLabel}
                     </Text>
                   </Box>
                 );
@@ -534,12 +545,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
         </Box>
       ) : null}
 
-      <Box
-        backgroundColor={COLORS.panelAlt}
-        justifyContent="space-between"
-        paddingX={1}
-        paddingY={0}
-      >
+      <Box backgroundColor={COLORS.panel} justifyContent="space-between" paddingX={1} paddingY={0}>
         <Box flexDirection="row">
           <ShortcutHint label="space" action="toggle" />
           <Text color={COLORS.muted}> · </Text>

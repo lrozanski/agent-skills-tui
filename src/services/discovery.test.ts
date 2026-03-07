@@ -17,7 +17,15 @@ describe("discoverSkills", () => {
     const tree = await discoverSkills(path.resolve(process.cwd(), "testdata/local-nested-skills"));
     const names = collectSkillNames(tree);
 
-    expect(names).toEqual(["auth-hardening", "observability-basics", "ui-foundation"]);
+    expect(names).toEqual([
+      "auth-hardening",
+      "form-primitives",
+      "observability-basics",
+      "performance-budgets",
+      "secrets-handling",
+      "theme-tokens",
+      "ui-foundation",
+    ]);
   });
 
   it("stops traversal once a SKILL.md boundary is found", async () => {
@@ -26,9 +34,7 @@ describe("discoverSkills", () => {
     );
     const names = collectSkillNames(tree);
 
-    expect(names).toContain("boundary-skill");
-    expect(names).toContain("grouped-skill");
-    expect(names).not.toContain("should-not-appear");
+    expect(names).toEqual(["boundary-skill", "grouped-skill"]);
   });
 
   it("skips malformed skills and reports warnings", async () => {
