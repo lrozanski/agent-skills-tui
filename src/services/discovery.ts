@@ -27,6 +27,7 @@ async function parseSkillMeta(skillFilePath: string): Promise<SkillMeta> {
 
 interface BuildContext {
   nodes: Record<string, SkillNode>;
+  warnings: string[];
 }
 
 async function buildNodeTree(
@@ -46,7 +47,16 @@ async function buildNodeTree(
   };
 
   if (hasSkillFile) {
-    const skillMeta = await parseSkillMeta(path.join(absDirPath, SKILL_FILE_NAME));
+    let skillMeta: SkillMeta;
+
+    try {
+      skillMeta = await parseSkillMeta(path.join(absDirPath, SKILL_FILE_NAME));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      context.warnings.push(message);
+      return null;
+    }
+
     const nodeId = absDirPath;
 
     context.nodes[nodeId] = {
@@ -115,11 +125,32 @@ async function buildNodeTree(
 
 export async function discoverSkills(rootPath: string): Promise<SkillTree> {
   const absoluteRootPath = path.resolve(rootPath);
-  const context: BuildContext = { nodes: {} };
+  const context: BuildContext = { nodes: {}, warnings: [] };
 
   const discoveredRoot = await buildNodeTree(absoluteRootPath, ROOT_ID, context);
   if (!discoveredRoot) {
-    throw new Error(`No skills found under source path: ${absoluteRootPath}`);
+    if (context.warnings.length === 0) {
+      throw new Error(`No skills found under source path: ${absoluteRootPath}`);
+    }
+
+    const canonicalRootPath = await realpath(absoluteRootPath);
+    context.nodes[ROOT_ID] = {
+      id: ROOT_ID,
+      kind: "group",
+      label: path.basename(absoluteRootPath),
+      absPath: absoluteRootPath,
+      canonicalPath: canonicalRootPath,
+      parentId: null,
+      childIds: [],
+      expanded: true,
+      selection: "unchecked",
+    };
+
+    return {
+      rootId: ROOT_ID,
+      nodes: context.nodes,
+      warnings: context.warnings,
+    };
   }
 
   const canonicalRootPath = await realpath(absoluteRootPath);
@@ -153,5 +184,6 @@ export async function discoverSkills(rootPath: string): Promise<SkillTree> {
   return {
     rootId: ROOT_ID,
     nodes: context.nodes,
+    warnings: context.warnings,
   };
 }

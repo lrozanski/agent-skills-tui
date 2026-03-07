@@ -1,20 +1,36 @@
-import { Box, type Key, Text, useApp, useInput } from "ink";
+import { Box, type Key, Text, useApp, useInput, useStdout } from "ink";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { filterTreeBySkillName } from "../domain/search.js";
 import {
   flattenVisibleTree,
-  getAncestorIds,
   getSelectedSkills,
   setExpanded,
   toggleSelection,
 } from "../domain/tree.js";
-import type { SkillTree, VisibleNode } from "../domain/types.js";
+import type { SkillTree } from "../domain/types.js";
 import { discoverSkills } from "../services/discovery.js";
 import { resolveSource, syncSource } from "../services/source.js";
 
-const PREVIEW_HEIGHT = 5;
+const SIDEBAR_WIDTH = 38;
+const COLORS = {
+  shell: "#16172b",
+  panel: "#1d2140",
+  panelAlt: "#22274a",
+  panelMuted: "#1a1e39",
+  accent: "#8be9fd",
+  accentSoft: "#b8c0ff",
+  text: "#cfd6f6",
+  muted: "#8a90b9",
+  group: "#8be9fd",
+  skill: "#c7cdea",
+  success: "#9fe870",
+  warning: "#ffd479",
+  danger: "#ff8c8c",
+  selection: "#2f3a63",
+  selectionText: "#dbe4ff",
+} as const;
 
 export interface AppExitResult {
   kind: "quit" | "install";
@@ -35,8 +51,12 @@ function truncateText(value: string, maxLength: number): string {
   return `${value.slice(0, maxLength - 1)}…`;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(value, max));
+}
+
 function rowPrefix(isCursor: boolean): string {
-  return isCursor ? ">" : " ";
+  return isCursor ? "›" : " ";
 }
 
 function selectionMark(selection: "checked" | "unchecked" | "partial"): string {
@@ -51,27 +71,44 @@ function selectionMark(selection: "checked" | "unchecked" | "partial"): string {
   return "[ ]";
 }
 
-function formatNodeRow(
-  tree: SkillTree,
-  row: VisibleNode,
-  cursorIndex: number,
-  rowIndex: number,
-): string {
-  const node = tree.nodes[row.id];
-  const indent = "  ".repeat(row.depth);
-  const branch = node.kind === "group" ? (node.expanded ? "▾" : "▸") : "•";
-  const skillLabel = node.kind === "skill" && node.skillMeta ? node.skillMeta.name : node.label;
+function getStatusColor(status: string): string {
+  const lower = status.toLowerCase();
+  if (lower.includes("failed") || lower.includes("error")) {
+    return COLORS.danger;
+  }
 
-  return `${rowPrefix(cursorIndex === rowIndex)} ${indent}${selectionMark(node.selection)} ${branch} ${skillLabel}`;
+  if (lower.includes("search") || lower.includes("loading") || lower.includes("refresh")) {
+    return COLORS.warning;
+  }
+
+  if (lower.includes("loaded")) {
+    return COLORS.success;
+  }
+
+  return COLORS.muted;
+}
+
+function ShortcutKey({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return <Text color={COLORS.warning}>{children}</Text>;
+}
+
+function ShortcutHint({ label, action }: { label: string; action: string }): React.JSX.Element {
+  return (
+    <Text color={COLORS.muted}>
+      <ShortcutKey>{label}</ShortcutKey> {action}
+    </Text>
+  );
 }
 
 export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
   const { exit } = useApp();
+  const { stdout } = useStdout();
   const [tree, setTree] = useState<SkillTree | null>(null);
   const [cursorIndex, setCursorIndex] = useState(0);
   const [query, setQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchMode, setSearchMode] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [status, setStatus] = useState("Loading source...");
   const [busy, setBusy] = useState(true);
   const [activeSourceArg, setActiveSourceArg] = useState(sourceArg);
@@ -89,7 +126,13 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
         setTree(discovered);
         setCursorIndex(0);
         setActiveSourceArg(resolved.originalSourceArg);
-        setStatus(mode === "initial" ? "Source loaded." : "Source refreshed.");
+        if (discovered.warnings.length > 0) {
+          setStatus(
+            `${mode === "initial" ? "Source loaded" : "Source refreshed"} with ${discovered.warnings.length} warning${discovered.warnings.length === 1 ? "" : "s"}.`,
+          );
+        } else {
+          setStatus(mode === "initial" ? "Source loaded." : "Source refreshed.");
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         setStatus(message);
@@ -184,8 +227,20 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
       return;
     }
 
-    setTree(setExpanded(tree, activeNode.id, true));
-  }, [tree, activeNode]);
+    const nextTree = setExpanded(tree, activeNode.id, true);
+    setTree(nextTree);
+
+    const firstChildId = activeNode.childIds[0];
+    if (!firstChildId) {
+      return;
+    }
+
+    const nextRows = flattenVisibleTree(nextTree, visibleNodeIds, query.trim().length > 0);
+    const childIndex = nextRows.findIndex((row) => row.id === firstChildId);
+    if (childIndex >= 0) {
+      setCursorIndex(childIndex);
+    }
+  }, [tree, activeNode, visibleNodeIds, query]);
 
   const toggleAtCursor = useCallback((): void => {
     if (!tree || !activeNode) {
@@ -222,6 +277,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
           setQuery("");
           setSearchInput("");
           setSearchMode(false);
+          setShowHelp(false);
           setStatus("Search cleared.");
           return;
         }
@@ -260,7 +316,14 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
       if (input === "f") {
         setSearchMode(true);
         setSearchInput(query);
+        setShowHelp(false);
         setStatus("Search mode active.");
+        return;
+      }
+
+      if (input === "?") {
+        setShowHelp((current) => !current);
+        setStatus(showHelp ? "Shortcuts hidden." : "Shortcuts visible.");
         return;
       }
 
@@ -317,6 +380,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
       toggleAtCursor,
       collapseAtCursor,
       expandAtCursor,
+      showHelp,
     ],
   );
 
@@ -324,76 +388,174 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
     handleInput(input, key);
   });
 
-  const hints = searchMode
-    ? "search: type | backspace edit | enter=apply | esc=clear"
-    : "up/down move | left/right collapse/expand | space toggle | f search | r refresh | enter install | q quit";
-
-  const activePathHint =
-    activeNode && tree
-      ? getAncestorIds(tree, activeNode.id).length > 0
-        ? activeNode.absPath
-        : ""
-      : "";
-
+  const stdoutWidth = stdout.columns ?? 80;
+  const stdoutHeight = stdout.rows ?? 24;
+  const sidebarWidth = clamp(SIDEBAR_WIDTH, 30, Math.max(30, stdoutWidth - 24));
+  const contentWidth = Math.max(24, stdoutWidth - sidebarWidth - 5);
+  const previewLength = clamp(contentWidth * 6, 120, 420);
+  const headerHeight = 3;
+  const footerHeight = (searchMode ? 1 : 0) + 1;
+  const mainHeight = Math.max(8, stdoutHeight - headerHeight - footerHeight);
+  const previewBody = truncateText(previewDescription, previewLength);
+  const listViewportSize = Math.max(1, mainHeight - 3);
+  const listWindowStart = clamp(
+    cursorIndex - Math.floor(listViewportSize / 2),
+    0,
+    Math.max(0, visibleRows.length - listViewportSize),
+  );
+  const visibleListRows = visibleRows.slice(listWindowStart, listWindowStart + listViewportSize);
   return (
-    <Box flexDirection="column">
-      <Box marginBottom={1}>
-        <Text color="cyan">Agent Skills TUI</Text>
-      </Box>
-
-      {searchMode ? (
-        <Box marginBottom={1}>
-          <Text color="yellow">Search: {searchInput}|</Text>
-        </Box>
-      ) : null}
-
-      <Box flexDirection="column">
-        {tree === null ? (
-          <Text>
-            {busy ? "Loading skill tree..." : "No skills available. Press r to retry or q to quit."}
+    <Box
+      backgroundColor={COLORS.shell}
+      flexDirection="column"
+      height={stdoutHeight}
+      width={stdoutWidth}
+    >
+      <Box
+        backgroundColor={COLORS.panel}
+        borderBottom
+        borderBottomColor={COLORS.accentSoft}
+        borderLeft={false}
+        borderRight={false}
+        borderStyle="single"
+        borderTop={false}
+        flexDirection="column"
+        paddingX={1}
+        paddingY={0}
+      >
+        <Box justifyContent="space-between">
+          <Text bold color={COLORS.accent}>
+            Agent Skills TUI
           </Text>
-        ) : visibleRows.length === 0 ? (
-          <Text>No matching skills.</Text>
-        ) : (
-          visibleRows.map((row, rowIndex) => {
-            const text = formatNodeRow(tree, row, cursorIndex, rowIndex);
-            return (
-              <Text key={row.id} color={rowIndex === cursorIndex ? "green" : undefined}>
-                {text}
-              </Text>
-            );
-          })
-        )}
+        </Box>
+        <Text color={COLORS.muted}>
+          {truncateText(`Source: ${activeSourceArg}`, Math.max(40, stdoutWidth - 10))}
+        </Text>
       </Box>
 
       <Box
-        borderStyle="round"
-        flexDirection="column"
-        height={PREVIEW_HEIGHT}
-        marginTop={1}
-        paddingX={1}
+        backgroundColor={COLORS.shell}
+        flexDirection="row"
+        height={mainHeight}
+        width={stdoutWidth}
       >
-        <Text color="magenta">Description</Text>
-        <Text>{truncateText(previewDescription, 120)}</Text>
+        <Box
+          backgroundColor={COLORS.panelAlt}
+          flexBasis={sidebarWidth}
+          flexDirection="column"
+          flexGrow={0}
+          flexShrink={0}
+          height={mainHeight}
+          paddingX={1}
+          paddingY={0}
+          width={sidebarWidth}
+        >
+          <Box justifyContent="space-between">
+            <Text bold color={COLORS.accentSoft}>
+              Skills
+            </Text>
+            <Text color={COLORS.muted}>{selectedSkills.length} selected</Text>
+          </Box>
+
+          <Box flexDirection="column">
+            {tree === null ? (
+              <Text color={COLORS.muted}>
+                {busy
+                  ? "Loading skill tree..."
+                  : "No skills available. Press r to retry or q to quit."}
+              </Text>
+            ) : visibleRows.length === 0 ? (
+              <Text color={COLORS.muted}>No matching skills.</Text>
+            ) : (
+              visibleListRows.map((row, rowIndex) => {
+                const actualRowIndex = listWindowStart + rowIndex;
+                const node = tree.nodes[row.id];
+                const isActive = actualRowIndex === cursorIndex;
+                const rowColor = node?.kind === "group" ? COLORS.group : COLORS.skill;
+                const mark = selectionMark(node.selection);
+                const prefix = `${rowPrefix(isActive)} ${"  ".repeat(row.depth)}`;
+                const branch = node.kind === "group" ? (node.expanded ? "▾" : "▸") : "•";
+                const skillLabel =
+                  node.kind === "skill" && node.skillMeta ? node.skillMeta.name : node.label;
+
+                return (
+                  <Box key={row.id} backgroundColor={isActive ? COLORS.selection : COLORS.panelAlt}>
+                    <Text color={isActive ? COLORS.selectionText : rowColor} wrap="truncate-end">
+                      {prefix}
+                    </Text>
+                    <Text color={COLORS.muted}>{mark}</Text>
+                    <Text color={isActive ? COLORS.selectionText : rowColor} wrap="truncate-end">
+                      {` ${branch} ${skillLabel}`}
+                    </Text>
+                  </Box>
+                );
+              })
+            )}
+          </Box>
+        </Box>
+
+        <Box flexDirection="column" flexGrow={1} flexShrink={1} height={mainHeight}>
+          <Box
+            backgroundColor={COLORS.panelMuted}
+            flexDirection="column"
+            flexGrow={1}
+            paddingX={1}
+            paddingY={0}
+          >
+            <Text bold color={COLORS.warning}>
+              Description
+            </Text>
+            <Text color={COLORS.text}>{previewBody}</Text>
+            {showHelp ? (
+              <Box flexDirection="column">
+                <Text bold color={COLORS.warning}>
+                  Keyboard Shortcuts
+                </Text>
+                <ShortcutHint label="up/down" action="move cursor" />
+                <ShortcutHint label="left/right" action="collapse or expand groups" />
+                <ShortcutHint label="space" action="toggle selection" />
+                <ShortcutHint label="f" action="open search" />
+                <ShortcutHint label="r" action="refresh source" />
+                <ShortcutHint label="enter" action="install selected skills" />
+                <ShortcutHint label="q" action="quit" />
+                <ShortcutHint label="?" action="toggle shortcuts" />
+              </Box>
+            ) : null}
+          </Box>
+        </Box>
       </Box>
 
-      <Box flexDirection="column" marginTop={1}>
-        <Text>
-          source={activeSourceArg} | target={targetCwd} | selected={selectedSkills.length}
-          {query ? ` | query="${query}"` : ""}
-          {searchMode ? " | mode=search" : " | mode=navigation"}
+      {searchMode ? (
+        <Box backgroundColor={COLORS.panel} paddingX={1} paddingY={0}>
+          <Text color={COLORS.muted}>
+            Search: {searchInput}| <ShortcutKey>enter</ShortcutKey> apply ·{" "}
+            <ShortcutKey>esc</ShortcutKey> clear
+          </Text>
+        </Box>
+      ) : null}
+
+      <Box
+        backgroundColor={COLORS.panelAlt}
+        justifyContent="space-between"
+        paddingX={1}
+        paddingY={0}
+      >
+        <Box flexDirection="row">
+          <ShortcutHint label="space" action="toggle" />
+          <Text color={COLORS.muted}> · </Text>
+          <ShortcutHint label="f" action="search" />
+          <Text color={COLORS.muted}> · </Text>
+          <ShortcutHint label="r" action="refresh" />
+          <Text color={COLORS.muted}> · </Text>
+          <ShortcutHint label="enter" action="install" />
+          <Text color={COLORS.muted}> · </Text>
+          <ShortcutHint label="q" action="quit" />
+          <Text color={COLORS.muted}> · </Text>
+          <ShortcutHint label="?" action="shortcuts" />
+        </Box>
+        <Text color={query ? COLORS.warning : getStatusColor(status)}>
+          {truncateText(query ? `filter: ${query}` : status, 28)}
         </Text>
-        <Text>{hints}</Text>
-        <Text
-          color={
-            status.toLowerCase().includes("failed") || status.toLowerCase().includes("error")
-              ? "red"
-              : "gray"
-          }
-        >
-          {status}
-        </Text>
-        {activePathHint ? <Text color="gray">{truncateText(activePathHint, 120)}</Text> : null}
       </Box>
     </Box>
   );

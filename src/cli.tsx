@@ -17,6 +17,7 @@ async function runCli(): Promise<void> {
   const sourceArg = program.args[0];
   const targetCwd = process.cwd();
 
+  console.clear();
   const appInstance = render(<App sourceArg={sourceArg} targetCwd={targetCwd} />);
   const waitResult = await appInstance.waitUntilExit();
   const result = isAppExitResult(waitResult) ? waitResult : { kind: "quit" as const };

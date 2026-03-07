@@ -1,6 +1,6 @@
 ---
 name: boundary-skill
-description: Skill boundary root.
+description: Skill boundary fixture.
 ---
 
 # Boundary Skill

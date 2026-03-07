@@ -29,6 +29,7 @@ export interface SkillNode {
 export interface SkillTree {
   rootId: string;
   nodes: Record<string, SkillNode>;
+  warnings: string[];
 }
 
 export interface VisibleNode {

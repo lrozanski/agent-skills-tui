@@ -31,9 +31,23 @@ describe("discoverSkills", () => {
     expect(names).not.toContain("should-not-appear");
   });
 
-  it("throws for malformed frontmatter", async () => {
-    await expect(
-      discoverSkills(path.resolve(process.cwd(), "testdata/malformed-frontmatter")),
-    ).rejects.toThrow("missing required frontmatter field");
+  it("skips malformed skills and reports warnings", async () => {
+    const tree = await discoverSkills(
+      path.resolve(process.cwd(), "testdata/malformed-frontmatter"),
+    );
+
+    expect(collectSkillNames(tree)).toEqual([]);
+    expect(tree.warnings).toHaveLength(1);
+    expect(tree.warnings[0]).toContain('missing required frontmatter field "name"');
+  });
+
+  it("keeps valid skills visible when siblings are malformed", async () => {
+    const tree = await discoverSkills(
+      path.resolve(process.cwd(), "testdata/mixed-malformed-skills"),
+    );
+
+    expect(collectSkillNames(tree)).toEqual(["good-skill"]);
+    expect(tree.warnings).toHaveLength(1);
+    expect(tree.warnings[0]).toContain("/testdata/mixed-malformed-skills/bad-skill/SKILL.md");
   });
 });

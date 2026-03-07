@@ -5,6 +5,7 @@ import type { SkillTree } from "./types.js";
 
 const tree: SkillTree = {
   rootId: "root",
+  warnings: [],
   nodes: {
     root: {
       id: "root",
