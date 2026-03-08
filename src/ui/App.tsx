@@ -19,6 +19,9 @@ const COLORS = {
   panel: "#20263d",
   panelMuted: "#101422",
   panelHelp: "#171c2d",
+  panelRight: "#141a29",
+  panelRightMuted: "#090d16",
+  panelRightHelp: "#0f1422",
   accent: "#f3d38b",
   accentSoft: "#6c7086",
   text: "#c7cee5",
@@ -77,7 +80,7 @@ function selectionMark(selection: "checked" | "unchecked" | "partial"): string {
 
 function nodeIcon(node: SkillTree["nodes"][string]): string {
   if (node.kind === "group") {
-    return node.expanded ? "-" : "+";
+    return node.expanded ? "" : "";
   }
 
   return "";
@@ -146,6 +149,25 @@ function formatFrontmatterValue(value: unknown): string {
 
 function normalizeFrontmatterValue(value: unknown): string {
   return formatFrontmatterValue(value).trim();
+}
+
+interface FooterShortcut {
+  label: string;
+  action: string;
+}
+
+const FOOTER_SHORTCUTS: FooterShortcut[] = [
+  { label: "space", action: "toggle" },
+  { label: "f", action: "search" },
+  { label: "r", action: "refresh" },
+  { label: "enter", action: "install" },
+  { label: "q", action: "quit" },
+];
+
+const HELP_SHORTCUT: FooterShortcut = { label: "?", action: "shortcuts" };
+
+function footerShortcutWidth(shortcut: FooterShortcut): number {
+  return shortcut.label.length + 1 + shortcut.action.length;
 }
 
 export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
@@ -505,10 +527,10 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
   const stdoutWidth = stdout.columns ?? 80;
   const stdoutHeight = stdout.rows ?? 24;
   const sidebarWidth = clamp(SIDEBAR_WIDTH, 30, Math.max(30, stdoutWidth - 24));
-  const headerHeight = 1;
+  const showFooterSource = stdoutWidth >= 120;
   const footerHeight = (searchMode ? 1 : 0) + 1;
-  const mainHeight = Math.max(8, stdoutHeight - headerHeight - footerHeight);
-  const sidebarChromeHeight = 5;
+  const mainHeight = Math.max(8, stdoutHeight - footerHeight);
+  const sidebarChromeHeight = 3;
   const listViewportSize = Math.max(1, mainHeight - sidebarChromeHeight);
   const listWindowStart = clamp(
     cursorIndex - Math.floor(listViewportSize / 2),
@@ -516,6 +538,39 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
     Math.max(0, visibleRows.length - listViewportSize),
   );
   const visibleListRows = visibleRows.slice(listWindowStart, listWindowStart + listViewportSize);
+  const footerStatusText = query ? `filter: ${query}` : status;
+  const footerStatusMaxLength = showFooterSource ? 36 : 28;
+  const footerSourceMaxLength = Math.max(24, Math.floor(stdoutWidth / 4));
+  const footerSourceText = showFooterSource
+    ? truncateText(`Source: ${activeSourceArg}`, footerSourceMaxLength)
+    : "";
+  const footerRightText = showFooterSource
+    ? `${footerSourceText} · ${truncateText(footerStatusText, footerStatusMaxLength)}`
+    : truncateText(footerStatusText, footerStatusMaxLength);
+  const footerReservedWidth = clamp(
+    footerRightText.length + 4,
+    24,
+    Math.max(24, Math.floor(stdoutWidth * 0.6)),
+  );
+  const footerLeftAvailableWidth = Math.max(0, stdoutWidth - footerReservedWidth);
+  const visibleFooterShortcuts = (() => {
+    const selected: FooterShortcut[] = [];
+    const mandatoryWidth = footerShortcutWidth(HELP_SHORTCUT);
+    let usedWidth = mandatoryWidth;
+
+    for (const shortcut of FOOTER_SHORTCUTS) {
+      const nextWidth = usedWidth + 3 + footerShortcutWidth(shortcut);
+      if (nextWidth > footerLeftAvailableWidth) {
+        break;
+      }
+
+      selected.push(shortcut);
+      usedWidth = nextWidth;
+    }
+
+    return [...selected, HELP_SHORTCUT];
+  })();
+
   return (
     <Box
       backgroundColor={COLORS.shell}
@@ -523,20 +578,6 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
       height={stdoutHeight}
       width={stdoutWidth}
     >
-      <Box backgroundColor={COLORS.panel} flexDirection="row" paddingX={1} paddingY={0}>
-        <Box flexBasis={0} flexGrow={1} />
-        <Box alignItems="center" flexBasis={0} flexGrow={1} justifyContent="center">
-          <Text bold color={COLORS.accent}>
-            Agent Skills TUI
-          </Text>
-        </Box>
-        <Box alignItems="flex-end" flexBasis={0} flexGrow={1}>
-          <Text color={COLORS.muted} wrap="truncate-start">
-            {truncateText(`Source: ${activeSourceArg}`, Math.max(24, Math.floor(stdoutWidth / 3)))}
-          </Text>
-        </Box>
-      </Box>
-
       <Box
         backgroundColor={COLORS.shell}
         flexDirection="row"
@@ -544,7 +585,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
         width={stdoutWidth}
       >
         <Box
-          backgroundColor={COLORS.panelMuted}
+          backgroundColor={COLORS.panelHelp}
           flexBasis={sidebarWidth}
           flexDirection="column"
           flexGrow={0}
@@ -552,14 +593,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
           height={mainHeight}
           width={sidebarWidth}
         >
-          <Box
-            backgroundColor={COLORS.panelHelp}
-            flexDirection="column"
-            flexGrow={1}
-            marginLeft={1}
-            marginY={1}
-            paddingY={0}
-          >
+          <Box backgroundColor={COLORS.panelHelp} flexDirection="column" flexGrow={1} paddingY={0}>
             <Box backgroundColor={COLORS.panel} justifyContent="space-between" paddingX={1}>
               <Text bold color={COLORS.accent}>
                 Skills
@@ -645,7 +679,7 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
         </Box>
 
         <Box
-          backgroundColor={COLORS.panelMuted}
+          backgroundColor={COLORS.panelRightMuted}
           flexDirection="column"
           flexGrow={1}
           flexShrink={1}
@@ -654,15 +688,18 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
           overflow="hidden"
         >
           <Box
-            backgroundColor={COLORS.panelHelp}
+            backgroundColor={COLORS.panelRightHelp}
             flexDirection="column"
             flexShrink={1}
-            marginX={1}
-            marginY={1}
             paddingX={1}
             paddingY={0}
           >
-            <Box backgroundColor={COLORS.panel} justifyContent="center" marginX={-1} paddingX={1}>
+            <Box
+              backgroundColor={COLORS.panelRight}
+              justifyContent="center"
+              marginX={-1}
+              paddingX={1}
+            >
               <Text bold color={COLORS.accent}>
                 Details
               </Text>
@@ -688,15 +725,18 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
           </Box>
           {showHelp ? (
             <Box
-              backgroundColor={COLORS.panelHelp}
+              backgroundColor={COLORS.panelRightHelp}
               flexDirection="column"
-              marginX={1}
-              marginBottom={1}
               overflow="hidden"
               paddingX={1}
               paddingY={0}
             >
-              <Box backgroundColor={COLORS.panel} justifyContent="center" marginX={-1} paddingX={1}>
+              <Box
+                backgroundColor={COLORS.panelRight}
+                justifyContent="center"
+                marginX={-1}
+                paddingX={1}
+              >
                 <Text bold color={COLORS.accent}>
                   Keyboard Shortcuts
                 </Text>
@@ -762,21 +802,26 @@ export function App({ sourceArg, targetCwd }: AppProps): React.JSX.Element {
 
       <Box backgroundColor={COLORS.panel} justifyContent="space-between" paddingX={1} paddingY={0}>
         <Box flexDirection="row">
-          <ShortcutHint label="space" action="toggle" />
-          <Text color={COLORS.footerSeparator}> · </Text>
-          <ShortcutHint label="f" action="search" />
-          <Text color={COLORS.footerSeparator}> · </Text>
-          <ShortcutHint label="r" action="refresh" />
-          <Text color={COLORS.footerSeparator}> · </Text>
-          <ShortcutHint label="enter" action="install" />
-          <Text color={COLORS.footerSeparator}> · </Text>
-          <ShortcutHint label="q" action="quit" />
-          <Text color={COLORS.footerSeparator}> · </Text>
-          <ShortcutHint label="?" action="shortcuts" />
+          {visibleFooterShortcuts.map((shortcut, index) => (
+            <Box key={`${shortcut.label}-${shortcut.action}`} flexDirection="row">
+              {index > 0 ? <Text color={COLORS.footerSeparator}> · </Text> : null}
+              <ShortcutHint label={shortcut.label} action={shortcut.action} />
+            </Box>
+          ))}
         </Box>
-        <Text color={query ? COLORS.warning : getStatusColor(status)}>
-          {truncateText(query ? `filter: ${query}` : status, 28)}
-        </Text>
+        <Box flexDirection="row" flexShrink={1} marginLeft={1}>
+          {showFooterSource ? (
+            <>
+              <Text color={COLORS.muted} wrap="truncate-start">
+                {footerSourceText}
+              </Text>
+              <Text color={COLORS.footerSeparator}> · </Text>
+            </>
+          ) : null}
+          <Text color={query ? COLORS.warning : getStatusColor(status)} wrap="truncate-start">
+            {truncateText(footerStatusText, footerStatusMaxLength)}
+          </Text>
+        </Box>
       </Box>
     </Box>
   );
