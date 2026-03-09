@@ -1,8 +1,8 @@
 import { useApp, useInput, useStdout } from "ink";
-import { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
-import { filterTreeBySkillName } from "../domain/search.js";
-import { flattenVisibleTree, setExpanded, toggleSelection } from "../domain/tree.js";
+import { filterTreeBySkillName, getSearchExpandedGroupIds } from "../domain/search.js";
+import { flattenVisibleTree, setAllExpanded, setExpanded, toggleSelection } from "../domain/tree.js";
 import { AppLayout } from "./components/AppLayout.js";
 import { DetailsPanel } from "./components/DetailsPanel.js";
 import { SearchBar } from "./components/SearchBar.js";
@@ -43,6 +43,7 @@ function AppContent({ sourceArg, targetCwd }: AppProps) {
   const [searchInput, setSearchInput] = useState("");
   const [searchMode, setSearchMode] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [searchExpandedGroupIds, setSearchExpandedGroupIds] = useState<Set<string>>(new Set());
   const { tree, setTree, busy, status, setStatus, activeSourceArg, loadTree } = useSkillTreeState({
     sourceArg,
     targetCwd,
@@ -59,6 +60,7 @@ function AppContent({ sourceArg, targetCwd }: AppProps) {
     tree,
     query,
     cursorIndex,
+    forcedExpandedNodeIds: query.trim().length > 0 ? searchExpandedGroupIds : undefined,
   });
 
   useLayoutEffect(() => {
@@ -69,6 +71,15 @@ function AppContent({ sourceArg, targetCwd }: AppProps) {
 
     setCursorIndex((currentIndex) => clamp(currentIndex, 0, visibleRows.length - 1));
   }, [visibleRows]);
+
+  useEffect(() => {
+    if (!tree || query.trim().length === 0) {
+      setSearchExpandedGroupIds(new Set());
+      return;
+    }
+
+    setSearchExpandedGroupIds(getSearchExpandedGroupIds(tree, query));
+  }, [query, tree?.rootId]);
   const {
     stdoutWidth,
     stdoutHeight,
@@ -121,13 +132,34 @@ function AppContent({ sourceArg, targetCwd }: AppProps) {
     [visibleRows.length],
   );
 
+  const moveCursorToBoundary = useCallback(
+    (boundary: "start" | "end"): void => {
+      if (visibleRows.length === 0) {
+        return;
+      }
+
+      setCursorIndex(boundary === "start" ? 0 : visibleRows.length - 1);
+    },
+    [visibleRows.length],
+  );
+
   const collapseAtCursor = useCallback((): void => {
     if (!tree || !activeNode) {
       return;
     }
 
-    if (activeNode.kind === "group" && activeNode.expanded) {
+    if (
+      activeNode.kind === "group" &&
+      (activeNode.expanded || searchExpandedGroupIds.has(activeNode.id))
+    ) {
       setTree(setExpanded(tree, activeNode.id, false));
+      if (query.trim().length > 0) {
+        setSearchExpandedGroupIds((current) => {
+          const next = new Set(current);
+          next.delete(activeNode.id);
+          return next;
+        });
+      }
       return;
     }
 
@@ -166,7 +198,7 @@ function AppContent({ sourceArg, targetCwd }: AppProps) {
     if (parentVisibleIndex >= 0) {
       setCursorIndex(parentVisibleIndex);
     }
-  }, [tree, activeNode, visibleRows, cursorIndex, setTree]);
+  }, [tree, activeNode, visibleRows, cursorIndex, query, searchExpandedGroupIds, setTree]);
 
   const expandAtCursor = useCallback((): void => {
     if (!tree || !activeNode) {
@@ -185,17 +217,18 @@ function AppContent({ sourceArg, targetCwd }: AppProps) {
       return;
     }
     const nextVisibleNodeIds = filterTreeBySkillName(nextTree, query);
-    const nextVisibleRows = flattenVisibleTree(
-      nextTree,
-      nextVisibleNodeIds,
-      query.trim().length > 0,
-    );
+    const nextForcedExpandedNodeIds =
+      query.trim().length > 0 ? new Set(searchExpandedGroupIds).add(activeNode.id) : undefined;
+    const nextVisibleRows = flattenVisibleTree(nextTree, nextVisibleNodeIds, nextForcedExpandedNodeIds);
     const childIndex = nextVisibleRows.findIndex((row) => row.id === firstChildId);
 
     if (childIndex >= 0) {
       setCursorIndex(childIndex);
     }
-  }, [tree, activeNode, query, moveCursor, setTree]);
+    if (query.trim().length > 0) {
+      setSearchExpandedGroupIds((current) => new Set(current).add(activeNode.id));
+    }
+  }, [tree, activeNode, query, moveCursor, searchExpandedGroupIds, setTree]);
 
   const toggleAtCursor = useCallback((): void => {
     if (!tree || !activeNode) {
@@ -205,6 +238,35 @@ function AppContent({ sourceArg, targetCwd }: AppProps) {
 
     setTree(toggleSelection(tree, activeNode.id, visibleScope));
   }, [tree, activeNode, query, visibleNodeIds, setTree]);
+
+  const collapseAll = useCallback((): void => {
+    if (!tree) {
+      return;
+    }
+
+    setTree(setAllExpanded(tree, false));
+    setSearchExpandedGroupIds(new Set());
+    setCursorIndex(0);
+  }, [tree, setTree]);
+
+  const expandAll = useCallback((): void => {
+    if (!tree) {
+      return;
+    }
+
+    setTree(setAllExpanded(tree, true));
+    if (query.trim().length > 0) {
+      const nextExpandedGroupIds = new Set<string>();
+
+      for (const node of Object.values(tree.nodes)) {
+        if (node.kind === "group") {
+          nextExpandedGroupIds.add(node.id);
+        }
+      }
+
+      setSearchExpandedGroupIds(nextExpandedGroupIds);
+    }
+  }, [tree, query, setTree]);
 
   const confirmInstall = useCallback((): void => {
     if (!tree) {
@@ -243,11 +305,14 @@ function AppContent({ sourceArg, targetCwd }: AppProps) {
       void loadTree("refresh");
     },
     moveCursor,
+    moveCursorToBoundary,
     pageJumpSize: Math.max(1, visibleListRows.length),
     confirmInstall,
     toggleAtCursor,
     collapseAtCursor,
     expandAtCursor,
+    collapseAll,
+    expandAll,
   });
 
   useInput((input, key) => {

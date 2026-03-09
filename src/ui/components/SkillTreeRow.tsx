@@ -20,10 +20,10 @@ export function SkillTreeRow({ row, node, isActive }: SkillTreeRowProps) {
   const theme = useTheme();
   let rowColor = theme.colors.skill;
 
-  if (node.kind === "group") {
-    rowColor = theme.colors.group;
-  } else if (node.errorMessage) {
+  if (node.errorMessage) {
     rowColor = theme.colors.danger;
+  } else if (node.kind === "group") {
+    rowColor = theme.colors.group;
   }
   const activeBackground = getSelectionBackground(theme, node);
   let activeTextColor = theme.colors.skill;
@@ -50,7 +50,7 @@ export function SkillTreeRow({ row, node, isActive }: SkillTreeRowProps) {
   const prefixBackground = isActive ? activeBackground : theme.colors.panelHelp;
   const checkboxColor = node.errorMessage ? theme.colors.danger : rowColor;
   const defaultTextColor = isActive ? activeTextColor : theme.colors.muted;
-  const groupIconColor = isActive ? activeTextColor : theme.colors.group;
+  const groupIconColor = isActive ? activeTextColor : rowColor;
   const checkboxTextColor = isActive ? activeTextColor : checkboxColor;
   const labelTextColor = isActive ? activeTextColor : rowColor;
   let selectionText = `${mark} `;

@@ -64,6 +64,16 @@ describe("discoverSkills", () => {
     expect(malformedNode?.errorMessage).toContain('missing required frontmatter field "name"');
   });
 
+  it("marks groups with only malformed descendants as malformed", async () => {
+    const tree = await discoverSkills(path.resolve(process.cwd(), "testdata"));
+
+    const malformedGroup = Object.values(tree.nodes).find(
+      (node) => node.kind === "group" && node.label === "malformed-frontmatter",
+    );
+
+    expect(malformedGroup?.errorMessage).toBe("All descendant skills are malformed.");
+  });
+
   it("keeps valid skills visible when siblings are malformed", async () => {
     const tree = await discoverSkills(
       path.resolve(process.cwd(), "testdata/mixed-malformed-skills"),
@@ -73,10 +83,14 @@ describe("discoverSkills", () => {
     expect(tree.warnings).toHaveLength(1);
     expect(tree.warnings[0]).toContain("/testdata/mixed-malformed-skills/bad-skill/SKILL.md");
     const malformedNode = Object.values(tree.nodes).find((node) => node.label === "bad-skill");
+    const mixedGroup = Object.values(tree.nodes).find(
+      (node) => node.kind === "group" && node.label === "mixed-malformed-skills",
+    );
     expect(malformedNode?.kind).toBe("skill");
     expect(malformedNode?.errorMessage).toContain(
       "/testdata/mixed-malformed-skills/bad-skill/SKILL.md",
     );
+    expect(mixedGroup?.errorMessage).toBeUndefined();
   });
 
   it("ignores symlinked files while traversing directories", async () => {

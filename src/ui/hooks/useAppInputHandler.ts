@@ -18,11 +18,14 @@ interface UseAppInputHandlerParams {
   quit: () => void;
   refresh: () => void;
   moveCursor: (delta: number) => void;
+  moveCursorToBoundary: (boundary: "start" | "end") => void;
   pageJumpSize: number;
   confirmInstall: () => void;
   toggleAtCursor: () => void;
   collapseAtCursor: () => void;
   expandAtCursor: () => void;
+  collapseAll: () => void;
+  expandAll: () => void;
 }
 
 interface SearchModeActions {
@@ -46,11 +49,14 @@ interface GlobalShortcutActions {
 
 interface TreeNavigationActions {
   moveCursor: (delta: number) => void;
+  moveCursorToBoundary: (boundary: "start" | "end") => void;
   pageJumpSize: number;
   confirmInstall: () => void;
   toggleAtCursor: () => void;
   collapseAtCursor: () => void;
   expandAtCursor: () => void;
+  collapseAll: () => void;
+  expandAll: () => void;
 }
 
 function handleSearchModeInput(
@@ -111,7 +117,7 @@ function handleGlobalShortcuts(
     return true;
   }
 
-  if (input === "f") {
+  if (input === "/") {
     actions.setSearchMode(true);
     actions.setSearchInput(query);
     actions.setShowHelp(false);
@@ -160,6 +166,16 @@ export function handleTreeNavigationInput(
     return true;
   }
 
+  if (key.home) {
+    actions.moveCursorToBoundary("start");
+    return true;
+  }
+
+  if (key.end) {
+    actions.moveCursorToBoundary("end");
+    return true;
+  }
+
   if (key.return) {
     actions.confirmInstall();
     return true;
@@ -177,6 +193,16 @@ export function handleTreeNavigationInput(
 
   if (key.rightArrow || input === "l") {
     actions.expandAtCursor();
+    return true;
+  }
+
+  if (input === "[") {
+    actions.collapseAll();
+    return true;
+  }
+
+  if (input === "]") {
+    actions.expandAll();
     return true;
   }
 
@@ -200,11 +226,14 @@ export function useAppInputHandler({
   quit,
   refresh,
   moveCursor,
+  moveCursorToBoundary,
   pageJumpSize,
   confirmInstall,
   toggleAtCursor,
   collapseAtCursor,
   expandAtCursor,
+  collapseAll,
+  expandAll,
 }: UseAppInputHandlerParams) {
   return useCallback(
     (input: string, key: Key) => {
@@ -243,11 +272,14 @@ export function useAppInputHandler({
 
       handleTreeNavigationInput(input, key, {
         moveCursor,
+        moveCursorToBoundary,
         pageJumpSize,
         confirmInstall,
         toggleAtCursor,
         collapseAtCursor,
         expandAtCursor,
+        collapseAll,
+        expandAll,
       });
     },
     [
@@ -267,11 +299,14 @@ export function useAppInputHandler({
       quit,
       refresh,
       moveCursor,
+      moveCursorToBoundary,
       pageJumpSize,
       confirmInstall,
       toggleAtCursor,
       collapseAtCursor,
       expandAtCursor,
+      collapseAll,
+      expandAll,
     ],
   );
 }

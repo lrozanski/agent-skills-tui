@@ -149,6 +149,31 @@ export function setExpanded(tree: SkillTree, nodeId: string, expanded: boolean):
   };
 }
 
+export function setAllExpanded(tree: SkillTree, expanded: boolean): SkillTree {
+  const nextNodes = cloneNodes(tree.nodes);
+  let changed = false;
+
+  for (const node of Object.values(nextNodes)) {
+    if (node.kind !== "group" || node.id === tree.rootId) {
+      continue;
+    }
+
+    if (node.expanded !== expanded) {
+      node.expanded = expanded;
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    return tree;
+  }
+
+  return {
+    ...tree,
+    nodes: nextNodes,
+  };
+}
+
 export interface SelectedSkill {
   name: string;
   canonicalPath: string;
@@ -181,7 +206,7 @@ export function getSelectedSkills(tree: SkillTree): SelectedSkill[] {
 export function flattenVisibleTree(
   tree: SkillTree,
   visibleNodeIds: Set<string>,
-  forceExpand = false,
+  forcedExpandedNodeIds?: Set<string>,
 ): VisibleNode[] {
   const flattened: VisibleNode[] = [];
   const root = tree.nodes[tree.rootId];
@@ -201,7 +226,8 @@ export function flattenVisibleTree(
     }
 
     if (node.kind === "group") {
-      const shouldTraverse = nodeId === tree.rootId || forceExpand || node.expanded;
+      const shouldTraverse =
+        nodeId === tree.rootId || node.expanded || Boolean(forcedExpandedNodeIds?.has(nodeId));
       if (!shouldTraverse) {
         return;
       }

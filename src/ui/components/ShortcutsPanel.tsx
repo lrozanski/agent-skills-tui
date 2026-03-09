@@ -6,9 +6,11 @@ import { ShortcutHint } from "./ShortcutHint.js";
 const SHORTCUT_HINTS = [
   { label: "up/down", action: "move cursor" },
   { label: "pgup/pgdn", action: "page jump" },
+  { label: "home/end", action: "first/last" },
   { label: "left/right", action: "collapse/expand" },
+  { label: "[ / ]", action: "collapse/expand all" },
   { label: "space", action: "toggle" },
-  { label: "f", action: "search" },
+  { label: "/", action: "search" },
   { label: "r", action: "refresh" },
   { label: "enter", action: "install" },
   { label: "q", action: "quit" },

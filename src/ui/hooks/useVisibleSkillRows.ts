@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 
-import { filterTreeBySkillName } from "../../domain/search.js";
+import { filterTreeBySkillName, getSearchExpandedGroupIds } from "../../domain/search.js";
 import { flattenVisibleTree, getSelectedSkills } from "../../domain/tree.js";
 import type { SkillTree } from "../../domain/types.js";
 
@@ -8,9 +8,15 @@ interface UseVisibleSkillRowsParams {
   tree: SkillTree | null;
   query: string;
   cursorIndex: number;
+  forcedExpandedNodeIds?: Set<string>;
 }
 
-export function useVisibleSkillRows({ tree, query, cursorIndex }: UseVisibleSkillRowsParams) {
+export function useVisibleSkillRows({
+  tree,
+  query,
+  cursorIndex,
+  forcedExpandedNodeIds,
+}: UseVisibleSkillRowsParams) {
   const visibleNodeIds = useMemo(() => {
     if (!tree) {
       return new Set<string>();
@@ -24,8 +30,8 @@ export function useVisibleSkillRows({ tree, query, cursorIndex }: UseVisibleSkil
       return [];
     }
 
-    return flattenVisibleTree(tree, visibleNodeIds, query.trim().length > 0);
-  }, [tree, visibleNodeIds, query]);
+    return flattenVisibleTree(tree, visibleNodeIds, forcedExpandedNodeIds);
+  }, [tree, visibleNodeIds, forcedExpandedNodeIds]);
 
   const selectedSkills = useMemo(() => {
     if (!tree) {
@@ -49,11 +55,9 @@ export function useVisibleSkillRows({ tree, query, cursorIndex }: UseVisibleSkil
       }
 
       const nextVisibleNodeIds = filterTreeBySkillName(tree, nextQuery);
-      const nextVisibleRows = flattenVisibleTree(
-        tree,
-        nextVisibleNodeIds,
-        nextQuery.trim().length > 0,
-      );
+      const nextForcedExpandedNodeIds =
+        nextQuery.trim().length > 0 ? getSearchExpandedGroupIds(tree, nextQuery) : undefined;
+      const nextVisibleRows = flattenVisibleTree(tree, nextVisibleNodeIds, nextForcedExpandedNodeIds);
       return nextVisibleRows.findIndex((row) => row.id === nodeId);
     },
     [tree],

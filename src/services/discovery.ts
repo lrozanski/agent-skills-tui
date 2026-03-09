@@ -36,6 +36,20 @@ interface BuildContext {
   warnings: string[];
 }
 
+function hasValidDescendantSkill(nodeId: string, nodes: Record<string, SkillNode>): boolean {
+  const node = nodes[nodeId];
+
+  if (!node) {
+    return false;
+  }
+
+  if (node.kind === "skill") {
+    return Boolean(node.skillMeta);
+  }
+
+  return node.childIds.some((childId) => hasValidDescendantSkill(childId, nodes));
+}
+
 async function resolveDirectoryMetadata(absPath: string): Promise<{
   canonicalPath: string;
   isDirectory: boolean;
@@ -161,6 +175,10 @@ async function buildNodeTree(
       selection: "unchecked",
       symlinkMeta,
     };
+
+    if (!hasValidDescendantSkill(nodeId, context.nodes)) {
+      context.nodes[nodeId].errorMessage = "All descendant skills are malformed.";
+    }
 
     for (const childId of childIds) {
       const child = context.nodes[childId];

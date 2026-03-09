@@ -33,11 +33,14 @@ function createKey(overrides: Partial<Key>): Key {
 function createActions(pageJumpSize = 5) {
   return {
     moveCursor: vi.fn(),
+    moveCursorToBoundary: vi.fn(),
     pageJumpSize,
     confirmInstall: vi.fn(),
     toggleAtCursor: vi.fn(),
     collapseAtCursor: vi.fn(),
     expandAtCursor: vi.fn(),
+    collapseAll: vi.fn(),
+    expandAll: vi.fn(),
   };
 }
 
@@ -60,5 +63,25 @@ describe("handleTreeNavigationInput", () => {
 
     expect(actions.moveCursor).toHaveBeenNthCalledWith(1, -7);
     expect(actions.moveCursor).toHaveBeenNthCalledWith(2, 7);
+  });
+
+  it("jumps to the first or last row with Home and End", () => {
+    const actions = createActions();
+
+    expect(handleTreeNavigationInput("", createKey({ home: true }), actions)).toBe(true);
+    expect(handleTreeNavigationInput("", createKey({ end: true }), actions)).toBe(true);
+
+    expect(actions.moveCursorToBoundary).toHaveBeenNthCalledWith(1, "start");
+    expect(actions.moveCursorToBoundary).toHaveBeenNthCalledWith(2, "end");
+  });
+
+  it("collapses and expands all groups", () => {
+    const actions = createActions();
+
+    expect(handleTreeNavigationInput("[", createKey({}), actions)).toBe(true);
+    expect(handleTreeNavigationInput("]", createKey({}), actions)).toBe(true);
+
+    expect(actions.collapseAll).toHaveBeenCalledOnce();
+    expect(actions.expandAll).toHaveBeenCalledOnce();
   });
 });

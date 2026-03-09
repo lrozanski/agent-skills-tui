@@ -28,11 +28,13 @@ pnpm dev -- https://github.com/owner/repo.git
 
 - `up` / `down`: move
 - `pgup` / `pgdn`: jump by one visible page
+- `home` / `end`: jump to the first or last visible row
 - `left` / `h`: collapse
 - `right` / `l`: expand
+- `[` / `]`: collapse or expand all groups
 - `space`: toggle selection
 - `enter`: install selected skills
-- `f`: search mode
+- `/`: search mode
 - `r`: refresh
 - `q`: quit
 

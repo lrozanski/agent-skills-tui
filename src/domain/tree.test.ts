@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { flattenVisibleTree, getSelectedSkills, setExpanded, toggleSelection } from "./tree.js";
+import {
+  flattenVisibleTree,
+  getSelectedSkills,
+  setAllExpanded,
+  setExpanded,
+  toggleSelection,
+} from "./tree.js";
 import type { SkillTree } from "./types.js";
 
 function buildTree(): SkillTree {
@@ -154,15 +160,16 @@ describe("flattenVisibleTree", () => {
     const tree = setExpanded(buildTree(), "g1", false);
     const visible = new Set(["root", "g1", "g2", "s1", "s2"]);
 
-    const rows = flattenVisibleTree(tree, visible, false);
+    const rows = flattenVisibleTree(tree, visible);
     expect(rows.map((row) => row.id)).toEqual(["g1"]);
   });
 
   it("forces expanded traversal while filtering", () => {
     const tree = setExpanded(buildTree(), "g1", false);
     const visible = new Set(["root", "g1", "g2", "s1"]);
+    const forcedExpanded = new Set(["g1", "g2"]);
 
-    const rows = flattenVisibleTree(tree, visible, true);
+    const rows = flattenVisibleTree(tree, visible, forcedExpanded);
     expect(rows.map((row) => row.id)).toEqual(["g1", "g2", "s1"]);
   });
 });
@@ -185,5 +192,29 @@ describe("setExpanded", () => {
 
     expect(updated.nodes.g1.expanded).toBe(true);
     expect(updated.nodes.g2.expanded).toBe(false);
+  });
+});
+
+describe("setAllExpanded", () => {
+  it("collapses every non-root group", () => {
+    const tree = buildTree();
+
+    const updated = setAllExpanded(tree, false);
+
+    expect(updated.nodes.root.expanded).toBe(true);
+    expect(updated.nodes.g1.expanded).toBe(false);
+    expect(updated.nodes.g2.expanded).toBe(false);
+  });
+
+  it("expands every non-root group", () => {
+    let tree = buildTree();
+    tree = setExpanded(tree, "g1", false);
+    tree = setExpanded(tree, "g2", false);
+
+    const updated = setAllExpanded(tree, true);
+
+    expect(updated.nodes.root.expanded).toBe(true);
+    expect(updated.nodes.g1.expanded).toBe(true);
+    expect(updated.nodes.g2.expanded).toBe(true);
   });
 });

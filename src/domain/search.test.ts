@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { filterTreeBySkillName } from "./search.js";
+import { filterTreeBySkillName, getSearchExpandedGroupIds } from "./search.js";
 import type { SkillTree } from "./types.js";
 
 const tree: SkillTree = {
@@ -79,5 +79,25 @@ describe("filterTreeBySkillName", () => {
   it("returns matching skills and required ancestors", () => {
     const visible = filterTreeBySkillName(tree, "back");
     expect([...visible].sort()).toEqual(["g1", "root", "s1"]);
+  });
+
+  it("returns a matching folder and its full subtree", () => {
+    const visible = filterTreeBySkillName(tree, "group");
+    expect([...visible].sort()).toEqual(["g1", "root", "s1"]);
+  });
+
+  it("keeps siblings outside a matching folder hidden", () => {
+    const visible = filterTreeBySkillName(tree, "gro");
+    expect(visible.has("s2")).toBe(false);
+  });
+});
+
+describe("getSearchExpandedGroupIds", () => {
+  it("expands ancestor groups for matching skills", () => {
+    expect([...getSearchExpandedGroupIds(tree, "back")].sort()).toEqual(["g1", "root"]);
+  });
+
+  it("expands a matching group itself", () => {
+    expect([...getSearchExpandedGroupIds(tree, "group")].sort()).toEqual(["g1", "root"]);
   });
 });

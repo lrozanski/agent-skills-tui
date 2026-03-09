@@ -7,7 +7,7 @@ export const SIDEBAR_WIDTH = 46;
 
 export const FOOTER_SHORTCUTS: FooterShortcut[] = [
   { label: "space", action: "toggle" },
-  { label: "f", action: "search" },
+  { label: "/", action: "search" },
   { label: "r", action: "refresh" },
   { label: "enter", action: "install" },
   { label: "q", action: "quit" },
