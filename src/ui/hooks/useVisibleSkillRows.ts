@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 
-import { filterTreeBySkillName, getSearchExpandedGroupIds } from "../../domain/search.js";
+import { getSearchResults } from "../../domain/search.js";
 import { flattenVisibleTree, getSelectedSkills } from "../../domain/tree.js";
 import type { SkillTree } from "../../domain/types.js";
 
@@ -8,22 +8,58 @@ interface UseVisibleSkillRowsParams {
   tree: SkillTree | null;
   query: string;
   cursorIndex: number;
-  forcedExpandedNodeIds?: Set<string>;
+  searchExpandedOverrides?: {
+    collapsedGroupIds: Set<string>;
+    expandedGroupIds: Set<string>;
+  };
+}
+
+export function resolveForcedExpandedNodeIds(
+  query: string,
+  autoExpandedGroupIds: Set<string>,
+  searchExpandedOverrides?: {
+    collapsedGroupIds: Set<string>;
+    expandedGroupIds: Set<string>;
+  },
+): Set<string> | undefined {
+  if (query.trim().length === 0) {
+    return undefined;
+  }
+
+  const nextForcedExpanded = new Set(autoExpandedGroupIds);
+
+  for (const groupId of searchExpandedOverrides?.expandedGroupIds ?? []) {
+    nextForcedExpanded.add(groupId);
+  }
+
+  for (const groupId of searchExpandedOverrides?.collapsedGroupIds ?? []) {
+    nextForcedExpanded.delete(groupId);
+  }
+
+  return nextForcedExpanded;
 }
 
 export function useVisibleSkillRows({
   tree,
   query,
   cursorIndex,
-  forcedExpandedNodeIds,
+  searchExpandedOverrides,
 }: UseVisibleSkillRowsParams) {
-  const visibleNodeIds = useMemo(() => {
+  const searchResults = useMemo(() => {
     if (!tree) {
-      return new Set<string>();
+      return {
+        autoExpandedGroupIds: new Set<string>(),
+        visibleNodeIds: new Set<string>(),
+      };
     }
 
-    return filterTreeBySkillName(tree, query);
+    return getSearchResults(tree, query);
   }, [tree, query]);
+  const { autoExpandedGroupIds, visibleNodeIds } = searchResults;
+
+  const forcedExpandedNodeIds = useMemo(() => {
+    return resolveForcedExpandedNodeIds(query, autoExpandedGroupIds, searchExpandedOverrides);
+  }, [autoExpandedGroupIds, query, searchExpandedOverrides]);
 
   const visibleRows = useMemo(() => {
     if (!tree) {
@@ -54,9 +90,10 @@ export function useVisibleSkillRows({
         return -1;
       }
 
-      const nextVisibleNodeIds = filterTreeBySkillName(tree, nextQuery);
+      const nextSearchResults = getSearchResults(tree, nextQuery);
+      const nextVisibleNodeIds = nextSearchResults.visibleNodeIds;
       const nextForcedExpandedNodeIds =
-        nextQuery.trim().length > 0 ? getSearchExpandedGroupIds(tree, nextQuery) : undefined;
+        nextQuery.trim().length > 0 ? nextSearchResults.autoExpandedGroupIds : undefined;
       const nextVisibleRows = flattenVisibleTree(tree, nextVisibleNodeIds, nextForcedExpandedNodeIds);
       return nextVisibleRows.findIndex((row) => row.id === nodeId);
     },
@@ -66,6 +103,7 @@ export function useVisibleSkillRows({
   return {
     visibleNodeIds,
     visibleRows,
+    forcedExpandedNodeIds,
     selectedSkills,
     activeRow,
     activeNode,

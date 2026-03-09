@@ -6,7 +6,6 @@ import { runInstall } from "./services/install.js";
 import { App, type AppExitResult } from "./ui/App.js";
 import {
   beginBufferedStdoutLogs,
-  discardBufferedStdoutLogs,
   flushBufferedStdoutLogs,
   logErrorToStdout,
 } from "./utils/logging.js";
@@ -83,17 +82,11 @@ async function runCli(): Promise<void> {
     stderr: process.stdout,
   });
   activeAppInstance = appInstance;
-  const handleResize = (): void => {
-    appInstance.rerender(<App sourceArg={sourceArg} targetCwd={targetCwd} />);
-  };
-
-  process.stdout.on("resize", handleResize);
 
   let waitResult: unknown;
   try {
     waitResult = await appInstance.waitUntilExit();
   } finally {
-    process.stdout.off("resize", handleResize);
     clearRenderedApp();
     exitAlternateScreen();
     flushBufferedStdoutLogs();
