@@ -33,6 +33,7 @@ describe("discoverSkills", () => {
 
     expect(names).toEqual([
       "auth-hardening",
+      "enterprise-content-authoring-workflow-optimization",
       "form-primitives",
       "observability-basics",
       "performance-budgets",
@@ -91,6 +92,74 @@ describe("discoverSkills", () => {
       "/testdata/mixed-malformed-skills/bad-skill/SKILL.md",
     );
     expect(mixedGroup?.errorMessage).toBeUndefined();
+  });
+
+  it("sorts folders before skills and alphabetizes within each group", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "agent-skills-tui-discovery-"));
+    tempDirs.push(tempDir);
+
+    const groupDir = path.join(tempDir, "godot");
+    const nestedSkillDir = path.join(groupDir, "scene-inspect");
+    const commitSkillDir = path.join(tempDir, "commit");
+    const markdownSkillDir = path.join(tempDir, "markdown-lint");
+
+    await mkdir(nestedSkillDir, { recursive: true });
+    await mkdir(commitSkillDir, { recursive: true });
+    await mkdir(markdownSkillDir, { recursive: true });
+
+    await writeFile(
+      path.join(nestedSkillDir, "SKILL.md"),
+      "---\nname: scene-inspect\ndescription: Example\n---\n# Scene Inspect\n",
+    );
+    await writeFile(
+      path.join(commitSkillDir, "SKILL.md"),
+      "---\nname: commit\ndescription: Example\n---\n# Commit\n",
+    );
+    await writeFile(
+      path.join(markdownSkillDir, "SKILL.md"),
+      "---\nname: markdown-lint\ndescription: Example\n---\n# Markdown Lint\n",
+    );
+
+    const tree = await discoverSkills(tempDir);
+    const rootChildLabels = tree.nodes[tree.rootId]?.childIds.map((childId) => tree.nodes[childId]?.label);
+
+    expect(rootChildLabels).toEqual(["godot", "commit", "markdown-lint"]);
+  });
+
+  it("sorts symlinked folders before skills and alphabetizes within each group", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "agent-skills-tui-discovery-"));
+    tempDirs.push(tempDir);
+
+    const targetGroupDir = path.join(tempDir, "godot-source");
+    const nestedSkillDir = path.join(targetGroupDir, "scene-inspect");
+    const symlinkedGroupDir = path.join(tempDir, "godot");
+    const commitSkillDir = path.join(tempDir, "commit");
+    const markdownSkillDir = path.join(tempDir, "markdown-lint");
+
+    await mkdir(nestedSkillDir, { recursive: true });
+    await mkdir(commitSkillDir, { recursive: true });
+    await mkdir(markdownSkillDir, { recursive: true });
+    await symlink(targetGroupDir, symlinkedGroupDir);
+
+    await writeFile(
+      path.join(nestedSkillDir, "SKILL.md"),
+      "---\nname: scene-inspect\ndescription: Example\n---\n# Scene Inspect\n",
+    );
+    await writeFile(
+      path.join(commitSkillDir, "SKILL.md"),
+      "---\nname: commit\ndescription: Example\n---\n# Commit\n",
+    );
+    await writeFile(
+      path.join(markdownSkillDir, "SKILL.md"),
+      "---\nname: markdown-lint\ndescription: Example\n---\n# Markdown Lint\n",
+    );
+
+    const tree = await discoverSkills(tempDir);
+    const rootChildLabels = tree.nodes[tree.rootId]?.childIds.map(
+      (childId) => tree.nodes[childId]?.label,
+    );
+
+    expect(rootChildLabels).toEqual(["godot", "godot-source", "commit", "markdown-lint"]);
   });
 
   it("ignores symlinked files while traversing directories", async () => {

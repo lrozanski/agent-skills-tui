@@ -23,6 +23,11 @@ export function nodeIcon(node: SkillNode): string {
   return "";
 }
 
+export function rowIndent(depth: number, node: SkillNode): string {
+  const extraSkillPadding = node.kind === "skill" ? " " : "";
+  return `${"  ".repeat(depth)}${extraSkillPadding}`;
+}
+
 export function getStatusColor(theme: AppTheme, status: string): string {
   const lower = status.toLowerCase();
 

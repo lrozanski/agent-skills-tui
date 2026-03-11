@@ -36,6 +36,25 @@ interface BuildContext {
   warnings: string[];
 }
 
+function compareChildNodeIds(
+  leftId: string,
+  rightId: string,
+  nodes: Record<string, SkillNode>,
+): number {
+  const leftNode = nodes[leftId];
+  const rightNode = nodes[rightId];
+
+  if (!leftNode || !rightNode) {
+    return leftId.localeCompare(rightId);
+  }
+
+  if (leftNode.kind !== rightNode.kind) {
+    return leftNode.kind === "group" ? -1 : 1;
+  }
+
+  return leftNode.label.localeCompare(rightNode.label);
+}
+
 function hasValidDescendantSkill(nodeId: string, nodes: Record<string, SkillNode>): boolean {
   const node = nodes[nodeId];
 
@@ -157,6 +176,8 @@ async function buildNodeTree(
         childIds.push(maybeNodeId);
       }
     }
+
+    childIds.sort((leftId, rightId) => compareChildNodeIds(leftId, rightId, context.nodes));
 
     if (childIds.length === 0) {
       return null;

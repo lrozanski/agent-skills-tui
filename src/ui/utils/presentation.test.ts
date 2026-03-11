@@ -7,6 +7,7 @@ import {
   getSelectionBackground,
   getStatusColor,
   nodeIcon,
+  rowIndent,
   rowPrefix,
   selectionMark,
 } from "./presentation.js";
@@ -38,6 +39,11 @@ describe("presentation utils", () => {
     expect(nodeIcon(createNode({ kind: "group", expanded: true }))).toBe("-");
     expect(nodeIcon(createNode({ kind: "group", expanded: false }))).toBe("+");
     expect(nodeIcon(createNode({ kind: "skill" }))).toBe("");
+  });
+
+  it("adds one extra space of indentation for skill rows", () => {
+    expect(rowIndent(1, createNode({ kind: "group" }))).toBe("  ");
+    expect(rowIndent(1, createNode({ kind: "skill" }))).toBe("   ");
   });
 
   it("derives theme-aware colors", () => {
