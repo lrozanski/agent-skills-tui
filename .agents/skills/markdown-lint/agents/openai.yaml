@@ -1,0 +1,3 @@
+interface:
+  display_name: "Markdown Lint"
+  short_description: "Run rumdl fmt/check and manually fix remaining Markdown lint issues"

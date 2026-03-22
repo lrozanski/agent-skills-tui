@@ -1,31 +1,31 @@
 ---
 name: markdown-lint
-description: "PROACTIVELY run after ANY markdown file edits. Lints and auto-fixes markdown using rumdl. Triggers: after .md changes, 'lint', 'check markdown', 'fix formatting', 'validate'"
-model: claude-haiku-4-5-20251001
-allowed-tools: [Bash(rumdl:*), Read, Edit]
+description: Lint and format Markdown changes with rumdl. Use when creating or editing .md files in this repository, especially before finalizing a task that touched documentation, prompts, skills, or configuration docs.
 ---
 
 # Markdown Lint
 
-Lint the markdown files that were just changed.
+Run Markdown quality checks after any Markdown edit.
 
-## Steps
+## Workflow
 
-1. Run `rumdl check --fix --color never <changed-file(s)>`
-   - Exit code 0 = all clean, exit code 1 = issues remain
-   - Remaining issues are lines printed WITHOUT `[fixed]` marker
-2. If issues remain, manually fix them using Read and Edit tools
-3. Briefly report results
+1. Identify the Markdown files changed in the current task, or explicitly confirm the user-designated Markdown file(s) when the scope is already provided.
+2. Run `rumdl fmt` on the confirmed Markdown file list.
+3. Fix remaining formatter-reported issues manually in the affected files, including cases where the formatter identifies a fix but cannot write it automatically.
+4. Re-run `rumdl fmt` until no relevant violations remain.
+5. Mention any unresolved lint constraints in the final handoff if they cannot be fixed safely.
 
-## Output Format
+## Command Pattern
 
-Each issue is one line: `{file}:{line}:{column}: [{rule_id}] {message} [{indicator}]`
+- Format: `rumdl fmt <path ...>`
 
-- `[*]` = fixable issue
-- `[fixed]` = was auto-fixed
-- No indicator = unfixable, needs manual fix
+## Manual Fix Guidance
 
-## Notes
+- Preserve author intent while fixing style issues.
+- Prefer minimal edits that satisfy lint rules.
+- Avoid unnecessary wording changes when fixing structure/format problems.
 
-- Only lint the specific files that were modified, not the entire project
-- Use haiku model for speed - this is a quick operation
+## Guardrails
+
+- Run formatter before manual fixes.
+- Treat formatter output as the primary verification signal; extra checks are optional but must not replace it.
